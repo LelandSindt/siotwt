@@ -7,6 +7,8 @@ import logging
 from logging.config import dictConfig
 from flask import Flask, json, request
 from waitress import serve
+import os
+import time
 
 zcdb = ZipCodeDatabase()
 
@@ -64,6 +66,8 @@ def v1_zipcode(zip, verbose=False):
     df = df.tz_localize(tz='UTC')
     #convert timzene to match zipcode #
     df = df.tz_convert(tz=(forecasts.json()['properties']['timeZone']))
+    os.environ['TZ'] = forecasts.json()['properties']['timeZone']
+    time.tzset()
     today = datetime.now()
     tomorrow = datetime.now()+timedelta(1)
     selection = df.loc[today.strftime('%Y-%m-%d 12:00:00'):tomorrow.strftime('%Y-%m-%d 12:00:00')]['isDaytime']

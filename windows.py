@@ -37,7 +37,12 @@ dictConfig({
 
 def youShouldOpenTheWindows(zip, verbose):
     resp = {'youShouldOpenTheWindowsTonight': None, 'error': None, 'status': None}
-    zipCode = zcdb[zip]
+    try:
+        zipCode = zcdb[zip]
+    except KeyError:
+        resp['status'] = 404
+        resp['error'] = 'zipcode ' + zip + ' not found'
+        return resp
     url = 'https://api.weather.gov/points/' + str(zipCode.latitude)  + ',' + str(zipCode.longitude)
     forecasts = requests.get(url, headers=headers, timeout=1)
     if forecasts.status_code != 200:

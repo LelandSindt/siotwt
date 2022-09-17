@@ -36,10 +36,19 @@ dictConfig({
 })
 
 def youShouldOpenTheWindows(zip, verbose):
+    resp = {'youShouldOpenTheWindowsTonight': None, 'error': None, 'status': None}
     zipCode = zcdb[zip]
     url = 'https://api.weather.gov/points/' + str(zipCode.latitude)  + ',' + str(zipCode.longitude)
     forecasts = requests.get(url, headers=headers, timeout=1)
+    if forecasts.status_code != 200:
+        resp['status'] = forecasts.status_code 
+        resp['error'] = 'unable to retrieve forcasts'
+        return resp
     hourlyForecast = requests.get(forecasts.json()['properties']['forecastHourly'], headers=headers, timeout=1 )
+    if hourlyForecast.status_code != 200:
+        resp['status'] = hourlyForecast.status_code 
+        resp['error'] = 'unable to retrieve hourly forcast'
+        return resp
     df = pd.DataFrame.from_dict(hourlyForecast.json()['properties']['periods'], orient='columns')
     df = df.drop(columns=['icon', 'name', 'endTime', 'number', 'detailedForecast','temperatureTrend','temperatureUnit'])
     df['windSpeed'] = df['windSpeed'].str.split().str[0]
@@ -60,7 +69,6 @@ def youShouldOpenTheWindows(zip, verbose):
     nightdf = df.loc[today.strftime('%Y-%m-%d 12:00:00'):tomorrow.strftime('%Y-%m-%d 12:00:00')][-selection]
     coolHours = nightdf.loc[nightdf['temperature'] < 75].shape[0]
     nightHours = nightdf.shape[0]
-    resp = {'youShouldOpenTheWindowsTonight': None }
     if (coolHours/nightHours >= .75):
         resp['youShouldOpenTheWindowsTonight'] = True
     else:
@@ -68,6 +76,7 @@ def youShouldOpenTheWindows(zip, verbose):
     if verbose:
         nightdf.index = nightdf.index.strftime('%Y-%m-%dT%H:%M:%S%z')
         resp['data'] = nightdf.to_dict(orient = 'index')
+    resp['status'] = 200
     return resp
 
 api = Flask(__name__)
@@ -75,18 +84,21 @@ api.logger.setLevel(logging.INFO)
 
 @api.after_request
 def log_more(response):
+    data = response.get_json() 
+    response.status_code = data['status']
     logging.info(str(response.content_length) + ' ' + str(response.status_code) + ' ' + request.remote_addr + ' ' + request.base_url) 
     return response 
 
 @api.route('/api/v1/zipcode/<path:zip>/verbose', methods=['GET'])
 def vi_zipcode_verbose(zip):
-    return v1_zipcode(zip, verbose=True)
+    resp = v1_zipcode(zip, verbose=True)
+    return resp
 
 
 @api.route('/api/v1/zipcode/<path:zip>', methods=['GET']) 
 def v1_zipcode(zip, verbose=False):
-    return youShouldOpenTheWindows(zip, verbose)
-
+    resp = youShouldOpenTheWindows(zip, verbose)
+    return resp
 
 if __name__ == '__main__':
     serve(api, host="0.0.0.0", port=8080, threads = 1) 

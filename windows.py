@@ -80,7 +80,7 @@ def v1_zipcode(zip, verbose=False):
     else:
         resp['openYourWindowsTonight'] = False
     if verbose:
-        nightdf.index = nightdf.index.strftime('%m/%d/%Y, %r')
+        nightdf.index = nightdf.index.strftime('%Y-%m-%dT%H:%M:%S%z')
         resp['data'] = nightdf.to_dict(orient = 'index')
     return resp 
 

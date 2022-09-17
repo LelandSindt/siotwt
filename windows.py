@@ -35,21 +35,7 @@ dictConfig({
     }
 })
 
-api = Flask(__name__)
-api.logger.setLevel(logging.INFO)
-
-@api.after_request
-def log_more(response):
-    logging.info(str(response.content_length) + ' ' + str(response.status_code) + ' ' + request.remote_addr + ' ' + request.base_url) 
-    return response 
-
-@api.route('/api/v1/zipcode/<path:zip>/verbose', methods=['GET'])
-def vi_zipcode_verbose(zip):
-    return v1_zipcode(zip, verbose=True)
-
-
-@api.route('/api/v1/zipcode/<path:zip>', methods=['GET']) 
-def v1_zipcode(zip, verbose=False):
+def youShouldOpenTheWindows(zip, verbose):
     zipCode = zcdb[zip]
     url = 'https://api.weather.gov/points/' + str(zipCode.latitude)  + ',' + str(zipCode.longitude)
     forecasts = requests.get(url, headers=headers, timeout=1)
@@ -74,15 +60,33 @@ def v1_zipcode(zip, verbose=False):
     nightdf = df.loc[today.strftime('%Y-%m-%d 12:00:00'):tomorrow.strftime('%Y-%m-%d 12:00:00')][-selection]
     coolHours = nightdf.loc[nightdf['temperature'] < 75].shape[0]
     nightHours = nightdf.shape[0]
-    resp = {'openYourWindowsTonight': True }
+    resp = {'youShouldOpenTheWindowsTonight': None }
     if (coolHours/nightHours >= .75):
-        resp['openYourWindowsTonight'] = True
+        resp['youShouldOpenTheWindowsTonight'] = True
     else:
-        resp['openYourWindowsTonight'] = False
+        resp['youShouldOpenTheWindowsTonight'] = False
     if verbose:
         nightdf.index = nightdf.index.strftime('%Y-%m-%dT%H:%M:%S%z')
         resp['data'] = nightdf.to_dict(orient = 'index')
-    return resp 
+    return resp
+
+api = Flask(__name__)
+api.logger.setLevel(logging.INFO)
+
+@api.after_request
+def log_more(response):
+    logging.info(str(response.content_length) + ' ' + str(response.status_code) + ' ' + request.remote_addr + ' ' + request.base_url) 
+    return response 
+
+@api.route('/api/v1/zipcode/<path:zip>/verbose', methods=['GET'])
+def vi_zipcode_verbose(zip):
+    return v1_zipcode(zip, verbose=True)
+
+
+@api.route('/api/v1/zipcode/<path:zip>', methods=['GET']) 
+def v1_zipcode(zip, verbose=False):
+    return youShouldOpenTheWindows(zip, verbose)
+
 
 if __name__ == '__main__':
     serve(api, host="0.0.0.0", port=8080, threads = 1) 

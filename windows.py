@@ -1,4 +1,3 @@
-from statistics import median_high
 import requests
 import pandas as pd
 from datetime import date, datetime, timedelta 
@@ -37,23 +36,45 @@ dictConfig({
 
 def youShouldOpenTheWindows(zip, verbose):
     resp = {'youShouldOpenTheWindowsTonight': None, 'error': None, 'status': None}
+
+    if not(zip.strip().isdigit()):
+        if int(zip) > 99999:
+            resp['status'] = 404
+            resp['error'] = 'zipcode ' + zip + ' not found'
+            return resp
     try:
         zipCode = zcdb[zip]
     except KeyError:
         resp['status'] = 404
         resp['error'] = 'zipcode ' + zip + ' not found'
         return resp
+
     url = 'https://api.weather.gov/points/' + str(zipCode.latitude)  + ',' + str(zipCode.longitude)
-    forecasts = requests.get(url, headers=headers, timeout=1)
+    try:
+        forecasts = requests.get(url, headers=headers, timeout=1)
+    except Exception as e:
+        resp['status'] = 500 
+        errmsg = 'unable to retrieve forcasts. ' + str(e)
+        resp['error'] =  errmsg
+        logging.info(errmsg)
+        return resp
     if forecasts.status_code != 200:
         resp['status'] = forecasts.status_code 
         resp['error'] = 'unable to retrieve forcasts'
         return resp
-    hourlyForecast = requests.get(forecasts.json()['properties']['forecastHourly'], headers=headers, timeout=1 )
+
+    try:
+        hourlyForecast = requests.get(forecasts.json()['properties']['forecastHourly'], headers=headers, timeout=1 )
+    except Exception as e:
+        resp['status'] = 500 
+        errmsg = 'unable to retrieve forcasts. ' + str(e)
+        resp['error'] =  errmsg
+        return resp
     if hourlyForecast.status_code != 200:
         resp['status'] = hourlyForecast.status_code 
         resp['error'] = 'unable to retrieve hourly forcast'
         return resp
+
     df = pd.DataFrame.from_dict(hourlyForecast.json()['properties']['periods'], orient='columns')
     df = df.drop(columns=['icon', 'name', 'endTime', 'number', 'detailedForecast','temperatureTrend','temperatureUnit'])
     df['windSpeed'] = df['windSpeed'].str.split().str[0]
@@ -90,7 +111,8 @@ api.logger.setLevel(logging.INFO)
 @api.after_request
 def log_more(response):
     data = response.get_json() 
-    response.status_code = data['status']
+    if data:
+        response.status_code = data.get('status', response.status_code)
     logging.info(str(response.content_length) + ' ' + str(response.status_code) + ' ' + request.remote_addr + ' ' + request.base_url) 
     return response 
 

@@ -1,4 +1,5 @@
 import requests
+from requests.adapters import HTTPAdapter, Retry
 import pandas as pd
 from datetime import date, datetime, timedelta 
 from pyzipcode import ZipCodeDatabase
@@ -10,6 +11,14 @@ import os
 import time
 
 zcdb = ZipCodeDatabase()
+
+requestsSessoin = requests.Session()
+
+retries = Retry(total=5,
+                backoff_factor=0.1,
+                status_forcelist=[ 500, 502, 503, 504 ])
+
+requestsSessoin.mount('https://', HTTPAdapter(max_retries=retries))
 
 headers = {
     'User-Agent': 'sioawt',
@@ -37,11 +46,14 @@ dictConfig({
 def youShouldOpenTheWindows(zip, verbose):
     resp = {'youShouldOpenTheWindowsTonight': None, 'error': None, 'status': None}
 
-    if not(zip.strip().isdigit()):
-        if int(zip) > 99999:
-            resp['status'] = 404
-            resp['error'] = 'zipcode ' + zip + ' not found'
-            return resp
+    if not(zip.isdigit()):
+        resp['status'] = 404
+        resp['error'] = 'zipcode ' + zip + ' not found'
+        return resp
+    if int(zip) > 99999:
+        resp['status'] = 404
+        resp['error'] = 'zipcode ' + zip + ' not found'
+        return resp
     try:
         zipCode = zcdb[zip]
     except KeyError:
@@ -51,7 +63,7 @@ def youShouldOpenTheWindows(zip, verbose):
 
     url = 'https://api.weather.gov/points/' + str(zipCode.latitude)  + ',' + str(zipCode.longitude)
     try:
-        forecasts = requests.get(url, headers=headers, timeout=1)
+        forecasts = requestsSessoin.get(url, headers=headers, timeout=5)
     except Exception as e:
         resp['status'] = 500 
         errmsg = 'unable to retrieve forcasts. ' + str(e)
@@ -64,7 +76,7 @@ def youShouldOpenTheWindows(zip, verbose):
         return resp
 
     try:
-        hourlyForecast = requests.get(forecasts.json()['properties']['forecastHourly'], headers=headers, timeout=1 )
+        hourlyForecast = requestsSessoin.get(forecasts.json()['properties']['forecastHourly'], headers=headers, timeout=5)
     except Exception as e:
         resp['status'] = 500 
         errmsg = 'unable to retrieve forcasts. ' + str(e)
@@ -118,13 +130,13 @@ def log_more(response):
 
 @api.route('/api/v1/zipcode/<path:zip>/verbose', methods=['GET'])
 def vi_zipcode_verbose(zip):
-    resp = v1_zipcode(zip, verbose=True)
+    resp = youShouldOpenTheWindows(zip, verbose=True)
     return resp
 
 
 @api.route('/api/v1/zipcode/<path:zip>', methods=['GET']) 
-def v1_zipcode(zip, verbose=False):
-    resp = youShouldOpenTheWindows(zip, verbose)
+def v1_zipcode(zip):
+    resp = youShouldOpenTheWindows(zip, verbose=False)
     return resp
 
 if __name__ == '__main__':

@@ -128,6 +128,11 @@ def log_more(response):
     logging.info(str(response.content_length) + ' ' + str(response.status_code) + ' ' + request.remote_addr + ' ' + request.base_url) 
     return response 
 
+@api.errorhandler(404)
+def page_not_found(error):
+    resp = {'youShouldOpenTheWindowsTonight': None, 'error': 'this page does not exist', 'status': 404}
+    return resp, 404
+
 @api.route('/api/v1/zipcode/<path:zip>/verbose', methods=['GET'])
 def vi_zipcode_verbose(zip):
     resp = youShouldOpenTheWindows(zip, verbose=True)

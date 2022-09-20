@@ -133,13 +133,13 @@ def page_not_found(error):
     resp = {'youShouldOpenTheWindowsTonight': None, 'error': 'this page does not exist', 'status': 404}
     return resp, 404
 
-@api.route('/api/v1/zipcode/<path:zip>/verbose', methods=['GET'])
+@api.route('/api/v1/zipcode/<zip>/verbose', methods=['GET'])
 def vi_zipcode_verbose(zip):
     resp = youShouldOpenTheWindows(zip, verbose=True)
     return resp
 
 
-@api.route('/api/v1/zipcode/<path:zip>', methods=['GET']) 
+@api.route('/api/v1/zipcode/<zip>', methods=['GET']) 
 def v1_zipcode(zip):
     resp = youShouldOpenTheWindows(zip, verbose=False)
     return resp

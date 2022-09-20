@@ -43,8 +43,45 @@ dictConfig({
     }
 })
 
-def youShouldOpenTheWindows(zip, verbose):
+def youShouldOpenTheWindows(zip, request, verbose):
     resp = {'youShouldOpenTheWindowsTonight': None, 'error': None, 'status': None}
+    data = None
+
+    if request.method in ['POST']:
+        data = request.json 
+
+    if data is None:
+        data = {}
+
+    resp['maxTemp'] = data.get('maxTemp', 75)
+    resp['minTemp'] = data.get('minTemp', 55)
+    resp['minPercentOfNightBelowMax'] = data.get('minPercentOfNightBelowMax', 75)
+    resp['maxPercentOfNightBelowMin'] = data.get('maxPercentOfNightBelowMin', 10)
+
+    if not(isinstance((resp['maxTemp']), int)):
+        resp['status'] = 400
+        resp['error'] = 'maxTemp must be int'
+        return resp
+
+    if not(isinstance((resp['minTemp']), int)):
+        resp['status'] = 400
+        resp['error'] = 'minTemp must be int'
+        return resp
+
+    if not(resp['minTemp'] < resp['maxTemp']):
+        resp['status'] = 400
+        resp['error'] = 'minTemp must be less than maxTemp'
+        return resp
+
+    if not(isinstance((resp['minPercentOfNightBelowMax']), int)):
+        resp['status'] = 400
+        resp['error'] = 'minPercentOfNightBelowMax must be int'
+        return resp
+
+    if not(isinstance((resp['maxPercentOfNightBelowMin']), int)):
+        resp['status'] = 400
+        resp['error'] = 'maxPercentOfNightBelowMin must be int'
+        return resp
 
     if not(zip.isdigit()):
         resp['status'] = 404
@@ -105,9 +142,12 @@ def youShouldOpenTheWindows(zip, verbose):
     tomorrow = datetime.now()+timedelta(1)
     selection = df.loc[today.strftime('%Y-%m-%d 12:00:00'):tomorrow.strftime('%Y-%m-%d 12:00:00')]['isDaytime']
     nightdf = df.loc[today.strftime('%Y-%m-%d 12:00:00'):tomorrow.strftime('%Y-%m-%d 12:00:00')][-selection]
-    coolHours = nightdf.loc[nightdf['temperature'] < 75].shape[0]
+    coolHours = nightdf.loc[nightdf['temperature'] < resp['maxTemp']].shape[0]
+    coldlHours = nightdf.loc[nightdf['temperature'] < resp['minTemp']].shape[0]
     nightHours = nightdf.shape[0]
-    if (coolHours/nightHours >= .75):
+    resp['coolHoursPercent'] = int(coolHours/nightHours * 100)
+    resp['coldHoursPercent'] = int(coldlHours/nightHours * 100)
+    if (resp['coolHoursPercent'] >= resp['minPercentOfNightBelowMax'] and resp['coolHoursPercent'] >= resp['maxPercentOfNightBelowMin']):
         resp['youShouldOpenTheWindowsTonight'] = True
     else:
         resp['youShouldOpenTheWindowsTonight'] = False
@@ -121,11 +161,11 @@ api = Flask(__name__)
 api.logger.setLevel(logging.INFO)
 
 @api.after_request
-def log_more(response):
+def log_more(response, requst=request):
     data = response.get_json() 
     if data:
         response.status_code = data.get('status', response.status_code)
-    logging.info(str(response.content_length) + ' ' + str(response.status_code) + ' ' + request.remote_addr + ' ' + request.base_url) 
+    logging.info(str(response.content_length) + ' ' + str(response.status_code) + ' ' + request.method + ' ' + request.remote_addr + ' ' + request.base_url) 
     return response 
 
 @api.errorhandler(404)
@@ -133,15 +173,20 @@ def page_not_found(error):
     resp = {'youShouldOpenTheWindowsTonight': None, 'error': 'this page does not exist', 'status': 404}
     return resp, 404
 
-@api.route('/api/v1/zipcode/<zip>/verbose', methods=['GET'])
-def vi_zipcode_verbose(zip):
-    resp = youShouldOpenTheWindows(zip, verbose=True)
+@api.errorhandler(500)
+def page_not_found(error):
+    resp = {'youShouldOpenTheWindowsTonight': None, 'error': 'something went wrong ¯\_(ツ)_/¯ ', 'status': 500}
+    return resp, 500 
+
+@api.route('/api/v1/zipcode/<zip>/verbose', methods=['GET', 'POST'])
+def vi_zipcode_verbose(zip, request=request):
+    resp = youShouldOpenTheWindows(zip, request, verbose=True)
     return resp
 
 
-@api.route('/api/v1/zipcode/<zip>', methods=['GET']) 
-def v1_zipcode(zip):
-    resp = youShouldOpenTheWindows(zip, verbose=False)
+@api.route('/api/v1/zipcode/<zip>', methods=['GET', 'POST']) 
+def v1_zipcode(zip, request=request):
+    resp = youShouldOpenTheWindows(zip, request, verbose=False)
     return resp
 
 if __name__ == '__main__':
